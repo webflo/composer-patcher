@@ -50,10 +50,10 @@ Downloads and patches a Drupal module:
     "extra": {
         "patches": {
             "drupal/xmlsitemap": [
-              {
-                  "title": "Call to undefined function xmlsitemap_link_frontpage_settings() https://www.drupal.org/node/1392710",
-                  "url": "https://www.drupal.org/files/include_inc_file-1392710.patch"
-              }
+                {
+                    "title": "Call to undefined function xmlsitemap_link_frontpage_settings() https://www.drupal.org/node/1392710",
+                    "url": "https://www.drupal.org/files/include_inc_file-1392710.patch"
+                }
             ]
         }
     }
