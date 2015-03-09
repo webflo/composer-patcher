@@ -8,10 +8,9 @@
 namespace Composer\Patcher;
 
 use Composer\Composer;
+use Composer\Installer\PackageEvent;
 use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
-
-use Composer\Script\Event;
 use Composer\Util\RemoteFileSystem;
 use Composer\Util\ProcessExecutor;
 
@@ -38,21 +37,30 @@ class PatcherPlugin implements PluginInterface
      * Implements scripts class method postPackageInstall().
      *
      * After package install, interrogates patch JSON array and applies.
+     * @param PackageEvent $event
+     * @throws \Exception
      */
-    public static function postPackageInstall(Event $event)
+    public static function postPackageInstall(PackageEvent $event)
     {
         // Store some objects from the event on this class.
         self::$io = $event->getIO();
 
         // Obtain install path, so as to patch within it.
+        /**
+         * @var \Composer\Package\PackageInterface $package
+         */
         $package = $event->getOperation()->getPackage();
         $manager = $event->getComposer()->getInstallationManager();
         $installPath = $manager->getInstaller($package->getType())->getInstallPath($package);
 
-        // Get list of patch URLs from "extra": { "patch": [ ... ]}.
-        $extraData = $package->getExtra();
-        if (!isset($extraData["patch"]) || !count($extraData["patch"]))
-        {
+        /**
+         * @var \Composer\Package\RootPackage $rootPackage
+         */
+        $rootPackage = $event->getComposer()->getPackage();
+        $extraData = $rootPackage->getExtra();
+
+        // Get list of patch URLs from "extra": { "patches": { "drupal/example": [ ... ] } }.
+        if (empty($extraData['patches'][$package->getName()])) {
             return;
         }
 
@@ -61,10 +69,10 @@ class PatcherPlugin implements PluginInterface
 
         // Descend into install directory, loop over patches and apply.
         $downloader = new RemoteFilesystem(self::$io, $event->getComposer()->getConfig());
-        foreach ($extraData["patch"] as $patchUrl)
+        foreach ($extraData['patches'][$package->getName()] as $patch)
         {
-            self::getAndApplyPatch($downloader, $installPath, $patchUrl);
-            self::writeReport("- $patchUrl", $installPath);
+            self::getAndApplyPatch($downloader, $installPath, $patch);
+            self::writeReport('- ' . $patch['url'], $installPath);
         }
 
         // End patches report.
@@ -74,18 +82,18 @@ class PatcherPlugin implements PluginInterface
     /**
      * Apply a remote patch on code in the specified directory.
      */
-    private static function getAndApplyPatch(RemoteFilesystem $downloader, $projectDirectory, $patchUrl)
+    private static function getAndApplyPatch(RemoteFilesystem $downloader, $projectDirectory, $patch)
     {
         // Generate random (but not cryptographically so) filename.
         $filename = uniqid("/tmp/") . ".patch";
 
         // Download file from remote filesystem to this location.
-        $hostname = parse_url($patchUrl, PHP_URL_HOST);
-        $downloader->copy($hostname, $patchUrl, $filename, TRUE);
+        $hostname = parse_url($patch['url'], PHP_URL_HOST);
+        $downloader->copy($hostname, $patch['url'], $filename, TRUE);
 
         // Modified from drush6:make.project.inc
         $patched = FALSE;
-        $patchLevels = array('-p1', '-p0');
+        $patchLevels = array('-p2', '-p1', '-p0');
 
         foreach ($patchLevels as $patchLevel)
         {
@@ -95,8 +103,8 @@ class PatcherPlugin implements PluginInterface
                 // Apply the first successful style.
                 $patched = self::executeCommand('cd %s && GIT_DIR=. git apply %s %s --verbose', $projectDirectory, $patchLevel, $filename);
                 break;
-            }   
-        }   
+            }
+        }
 
         // In some rare cases, git will fail to apply a patch, fallback to using
         // the 'patch' command.
@@ -109,7 +117,7 @@ class PatcherPlugin implements PluginInterface
                 if ($patched = self::executeCommand("patch %s --no-backup-if-mismatch -d %s < %s", $patchLevel, $projectDirectory, $filename))
                 {
                   break;
-                }   
+                }
             }
         }
 
@@ -118,7 +126,7 @@ class PatcherPlugin implements PluginInterface
 
         if (!$patched)
         {
-            throw new \Exception("Cannot apply patch $patchUrl");
+            throw new \Exception("Cannot apply patch " . $patch['url']);
         }
     }
 
