@@ -37,29 +37,26 @@ Downloads and patches a Drupal module:
 
 ```json
 {
-    "repositories": {
-        "xmlsitemap": {
-            "type": "package",
-            "package": {
-                "name": "drupal/xmlsitemap",
-                "type": "drupal-module",
-                "version": "2.0-rc2",
-                "dist": {
-                    "url": "http://ftp.drupal.org/files/projects/xmlsitemap-7.x-2.0-rc2.tar.gz",
-                    "type": "tar"
-                },
-                "extra": {
-                    "patch": [
-                        "https://drupal.org/files/include_inc_file-1392710.patch"
-                    ]
-                }
-            }
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "http://packagist.drupal-composer.org"
         }
-    },
+    ],
     "require": {
         "jpstacey/composer-patcher": "*",
         "drupal/xmlsitemap": "2.0-rc2"
     },
+    "extra": {
+        "patches": {
+            "drupal/xmlsitemap": [
+              {
+                  "title": "Call to undefined function xmlsitemap_link_frontpage_settings() https://www.drupal.org/node/1392710",
+                  "url": "https://www.drupal.org/files/include_inc_file-1392710.patch"
+              }
+            ]
+        }
+    }
     "scripts": {
         "post-package-install": "Composer\\Patcher\\PatcherPlugin::postPackageInstall"
     }
